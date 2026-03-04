@@ -5,11 +5,17 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
+import CalendarPage from "@/pages/CalendarPage";
+import ChatPage from "@/pages/ChatPage";
+import AnalysisPage from "@/pages/AnalysisPage";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/calendar" component={CalendarPage} />
+      <Route path="/chat" component={ChatPage} />
+      <Route path="/analysis" component={AnalysisPage} />
       <Route component={NotFound} />
     </Switch>
   );
