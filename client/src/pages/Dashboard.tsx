@@ -1,30 +1,65 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { 
   Calendar, 
   MessageCircleHeart, 
   FileText, 
-  Activity, 
   ChevronRight, 
   Bell, 
   HeartPulse,
-  Plus,
-  Send,
   UploadCloud,
-  LayoutDashboard
+  LayoutDashboard,
+  Scale,
+  Heart,
+  Smile,
+  Moon,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { getFetalSizeByWeek, formatFetalWeight, formatFetalLength } from "@/lib/fetalSize";
+import {
+  getLatestWeight,
+  getLatestPressure,
+  getLatestMood,
+  getLatestSleep,
+  formatMetricValue,
+  METRIC_CONFIG,
+  type MetricSlug,
+} from "@/lib/healthMetrics";
+import { QuickLogDrawer } from "@/components/QuickLogDrawer";
 
 import bgImage from "../assets/images/bg-abstract.png";
-import aiAvatar from "../assets/images/ai-avatar.png";
+
+const DASHBOARD_METRICS: { slug: MetricSlug; icon: typeof Scale; bg: string }[] = [
+  { slug: "weight", icon: Scale, bg: "from-rose-500/15 to-rose-500/5" },
+  { slug: "pressure", icon: Heart, bg: "from-blue-500/15 to-blue-500/5" },
+  { slug: "mood", icon: Smile, bg: "from-amber-500/15 to-amber-500/5" },
+  { slug: "sleep", icon: Moon, bg: "from-indigo-500/15 to-indigo-500/5" },
+];
+
+function getLatestForSlug(slug: MetricSlug): string {
+  switch (slug) {
+    case "weight":
+      return formatMetricValue("weight", getLatestWeight());
+    case "pressure":
+      return formatMetricValue("pressure", getLatestPressure());
+    case "mood":
+      return formatMetricValue("mood", getLatestMood());
+    case "sleep":
+      return formatMetricValue("sleep", getLatestSleep());
+    default:
+      return "—";
+  }
+}
 
 export default function Dashboard() {
   const currentWeek = 22;
-  const progressPercent = (currentWeek / 40) * 100;
+  const fetalSize = getFetalSizeByWeek(currentWeek);
+  const [quickLogMetric, setQuickLogMetric] = useState<MetricSlug | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const fadeIn = {
     initial: { opacity: 0, y: 20 },
@@ -75,12 +110,15 @@ export default function Dashboard() {
                   <h2 className="text-4xl font-serif font-medium mb-2">Ваш малыш растет</h2>
                   <p className="text-muted-foreground">Сейчас он размером с папайю. Все идет по плану!</p>
                 </div>
-                <div className="w-full md:w-64">
-                  <div className="flex justify-between text-sm mb-2 font-medium">
-                    <span className="text-muted-foreground">Прогресс</span>
-                    <span className="text-primary">55%</span>
+                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 text-center md:text-left">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-medium tracking-wider mb-0.5">Вес малыша</p>
+                    <p className="text-xl font-serif font-semibold text-primary">{formatFetalWeight(fetalSize.weightG)}</p>
                   </div>
-                  <Progress value={progressPercent} className="h-2 rounded-full bg-secondary" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase font-medium tracking-wider mb-0.5">Рост</p>
+                    <p className="text-xl font-serif font-semibold text-primary">{formatFetalLength(fetalSize.lengthCm)}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -146,25 +184,37 @@ export default function Dashboard() {
             </Link>
           </motion.div>
 
-          {/* Quick Summary Section */}
+          {/* Metrics: tap to quick-log */}
           <motion.div {...fadeIn} transition={{ delay: 0.4 }} className="md:col-span-2 lg:col-span-3">
-             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  { label: 'Вес', value: '+5.2 кг', icon: Activity, color: 'text-rose-500' },
-                  { label: 'Давление', value: '110/70', icon: Activity, color: 'text-blue-500' },
-                  { label: 'Настроение', value: 'Отличное', icon: Activity, color: 'text-amber-500' },
-                  { label: 'Сон', value: '8.5 ч', icon: Activity, color: 'text-indigo-500' },
-                ].map((item, i) => (
-                  <div key={i} className="bg-white/50 p-4 rounded-2xl border border-white/50 flex items-center gap-4">
-                    <item.icon className={`w-5 h-5 ${item.color}`} />
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">{item.label}</p>
-                      <p className="text-lg font-serif font-semibold">{item.value}</p>
-                    </div>
-                  </div>
-                ))}
+             <div className="grid grid-cols-2 gap-3" key={refreshKey}>
+                {DASHBOARD_METRICS.map(({ slug, icon: Icon, bg }) => {
+                  const config = METRIC_CONFIG[slug];
+                  const value = getLatestForSlug(slug);
+                  return (
+                    <button
+                      key={slug}
+                      type="button"
+                      onClick={() => setQuickLogMetric(slug)}
+                      className={`rounded-2xl border border-white/60 bg-gradient-to-br ${bg} p-4 text-left shadow-sm hover:shadow-md active:scale-[0.98] transition-all focus:outline-none focus:ring-2 focus:ring-primary/20`}
+                    >
+                      <Icon className={`w-6 h-6 ${config.color} mb-2`} />
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider truncate">
+                        {config.label}
+                      </p>
+                      <p className="text-lg font-semibold truncate mt-0.5">{value}</p>
+                    </button>
+                  );
+                })}
              </div>
+             <p className="text-xs text-muted-foreground text-center mt-2">Нажмите, чтобы записать</p>
           </motion.div>
+
+          <QuickLogDrawer
+            metric={quickLogMetric}
+            open={quickLogMetric !== null}
+            onOpenChange={(open) => !open && setQuickLogMetric(null)}
+            onLogged={() => setRefreshKey((k) => k + 1)}
+          />
         </div>
       </div>
 

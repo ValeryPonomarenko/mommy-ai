@@ -1,15 +1,25 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, Send, Sparkles } from "lucide-react";
-import { Link } from "wouter";
+import { ChevronLeft, Send, Sparkles, FileText } from "lucide-react";
+import { Link, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getAnalysisById } from "@/lib/analysis";
 
 import aiAvatar from "../assets/images/ai-avatar.png";
 
+function getFromAnalysisId(search: string): string | null {
+  const params = new URLSearchParams(search);
+  return params.get("fromAnalysis");
+}
+
 export default function ChatPage() {
+  const search = useSearch();
+  const fromAnalysisId = useMemo(() => getFromAnalysisId(search), [search]);
+  const analysis = fromAnalysisId ? getAnalysisById(fromAnalysisId) : null;
+
   const [messages, setMessages] = useState([
     { role: 'assistant', text: 'Доброе утро! Я здесь, чтобы помочь вам пройти через этот путь спокойно. Как вы себя чувствуете сегодня?' },
     { role: 'user', text: 'Привет! Иногда чувствую, как малыш толкается, это так необычно.' },
@@ -46,6 +56,25 @@ export default function ChatPage() {
 
       <ScrollArea className="flex-1 p-4">
         <div className="max-w-2xl mx-auto space-y-6 py-4">
+          {analysis && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="w-4 h-4 text-primary shrink-0" />
+                <span className="text-sm text-muted-foreground truncate">
+                  Обсуждаете анализ: <span className="font-medium text-foreground">{analysis.title}</span>
+                </span>
+              </div>
+              <Link href={`/analysis/${analysis.id}`}>
+                <Button variant="ghost" size="sm" className="shrink-0 text-primary">
+                  К анализу
+                </Button>
+              </Link>
+            </motion.div>
+          )}
           {messages.map((msg, i) => (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}

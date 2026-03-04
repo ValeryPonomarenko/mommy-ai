@@ -1,11 +1,14 @@
 import { motion } from "framer-motion";
-import { ChevronLeft, UploadCloud, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { ChevronLeft, UploadCloud, FileText, CheckCircle2, AlertCircle, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { getAllAnalyses } from "@/lib/analysis";
 
 export default function AnalysisPage() {
+  const analyses = getAllAnalyses();
+
   return (
     <div className="min-h-screen bg-background font-sans pb-10">
       <div className="container mx-auto px-4 py-8 max-w-2xl">
@@ -38,46 +41,52 @@ export default function AnalysisPage() {
           <section>
             <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-4">Последние расшифровки</h2>
             <div className="space-y-4">
-              <Card className="border-border/50 overflow-hidden">
-                <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-blue-500" />
-                    <CardTitle className="text-base">Общий анализ крови</CardTitle>
-                  </div>
-                  <span className="text-xs text-muted-foreground">12 мая 2024</span>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-green-50 border border-green-100 rounded-xl p-3 flex items-start gap-3 mb-4">
-                    <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5" />
-                    <p className="text-xs text-green-800">Все показатели в норме для 20-й недели беременности.</p>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="font-medium">Гемоглобин</span>
-                        <span className="text-muted-foreground">118 г/л (Норма 110-140)</span>
-                      </div>
-                      <Progress value={60} className="h-1 bg-secondary" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/50 overflow-hidden opacity-80">
-                <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-purple-500" />
-                    <CardTitle className="text-base">Ферритин</CardTitle>
-                  </div>
-                  <span className="text-xs text-muted-foreground">10 апр 2024</span>
-                </CardHeader>
-                <CardContent>
-                   <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-start gap-3">
-                    <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
-                    <p className="text-xs text-amber-800">Показатель на нижней границе нормы. Рекомендуется консультация врача.</p>
-                  </div>
-                </CardContent>
-              </Card>
+              {analyses.map((a) => {
+                const isNormal = a.status === "normal";
+                const isAttention = a.status === "attention";
+                const Icon = isNormal ? CheckCircle2 : AlertCircle;
+                const summaryBg = isNormal ? "bg-green-50 border-green-100" : "bg-amber-50 border-amber-100";
+                const summaryText = isNormal ? "text-green-800" : "text-amber-800";
+                const iconColor = isNormal ? "text-green-600" : "text-amber-600";
+                const iconBg = isNormal ? "text-blue-500" : "text-purple-500";
+                return (
+                  <Link key={a.id} href={`/analysis/${a.id}`}>
+                    <Card className="border-border/50 overflow-hidden hover:shadow-md transition-shadow cursor-pointer">
+                      <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FileText className={`w-5 h-5 ${iconBg}`} />
+                          <CardTitle className="text-base">{a.title}</CardTitle>
+                        </div>
+                        <span className="text-xs text-muted-foreground">{a.dateShort}</span>
+                      </CardHeader>
+                      <CardContent>
+                        <div className={`rounded-xl border p-3 flex items-start gap-3 mb-4 ${summaryBg}`}>
+                          <Icon className={`w-4 h-4 mt-0.5 ${iconColor}`} />
+                          <p className={`text-xs ${summaryText}`}>{a.summary}</p>
+                        </div>
+                        {a.indicators.length > 0 && (
+                          <div className="space-y-3">
+                            <div>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="font-medium">{a.indicators[0].name}</span>
+                                <span className="text-muted-foreground">
+                                  {a.indicators[0].value} {a.indicators[0].unit ?? ""} {a.indicators[0].reference ? `(Норма ${a.indicators[0].reference})` : ""}
+                                </span>
+                              </div>
+                              {a.indicators[0].percentInRange != null && (
+                                <Progress value={a.indicators[0].percentInRange} className="h-1 bg-secondary" />
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        <div className="mt-3 flex items-center text-primary font-medium text-sm">
+                          Подробнее <ChevronRight className="w-4 h-4 ml-1" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })}
             </div>
           </section>
         </div>
