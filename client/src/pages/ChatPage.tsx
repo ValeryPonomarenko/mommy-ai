@@ -2,14 +2,15 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ChevronLeft, Send, Sparkles, FileText, Loader2 } from "lucide-react";
+import { ChevronLeft, Send, Sparkles, FileText, Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { Link, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getAnalysisById } from "@/lib/analysis";
-import { sendChat } from "@/lib/chatApi";
+import { sendChat, getChatHistory } from "@/lib/chatApi";
+import { useAuth } from "@/contexts/AuthContext";
 
 import aiAvatar from "../assets/images/ai-avatar.png";
 
@@ -20,6 +21,22 @@ function getFromAnalysisId(search: string): string | null {
   return params.get("fromAnalysis");
 }
 
+function getChatThreadContext(search: string): {
+  thread: string | null;
+  calendarTitle: string | null;
+  calendarDate: string | null;
+} {
+  const params = new URLSearchParams(search);
+  const thread = params.get("thread");
+  const calendarTitle = params.get("calendarTitle");
+  const calendarDate = params.get("calendarDate");
+  return {
+    thread: thread || null,
+    calendarTitle: calendarTitle || null,
+    calendarDate: calendarDate || null,
+  };
+}
+
 const INITIAL_MESSAGES: Message[] = [
   { role: "assistant", text: "Доброе утро! Я здесь, чтобы помочь вам пройти через этот путь спокойно. Как вы себя чувствуете сегодня?" },
 ];
@@ -28,12 +45,42 @@ export default function ChatPage() {
   const search = useSearch();
   const fromAnalysisId = useMemo(() => getFromAnalysisId(search), [search]);
   const analysis = fromAnalysisId ? getAnalysisById(fromAnalysisId) : null;
+  const threadContext = useMemo(() => getChatThreadContext(search), [search]);
+  const { thread, calendarTitle, calendarDate } = threadContext;
+  const { token } = useAuth();
 
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // When thread or token changes, reset and (re)load history for this thread
+  useEffect(() => {
+    setMessages(INITIAL_MESSAGES);
+    setHistoryLoaded(false);
+  }, [thread, token]);
+
+  useEffect(() => {
+    if (!token) {
+      setHistoryLoaded(true);
+      return;
+    }
+    if (historyLoaded) return;
+    getChatHistory(token, thread ?? undefined)
+      .then(({ messages: list }) => {
+        if (list.length > 0) {
+          setMessages(
+            list.map((m) => ({ role: m.role as "user" | "assistant", text: m.content }))
+          );
+        } else {
+          setMessages(INITIAL_MESSAGES);
+        }
+      })
+      .catch(() => setMessages(INITIAL_MESSAGES))
+      .finally(() => setHistoryLoaded(true));
+  }, [token, thread, historyLoaded]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -54,7 +101,13 @@ export default function ChatPage() {
         role: m.role,
         content: m.text,
       }));
-      const { reply } = await sendChat(apiMessages);
+      let context: string | undefined;
+      if (analysis) context = `Анализ: ${analysis.title}`;
+      else if (thread && calendarTitle) context = calendarDate ? `Событие: ${calendarTitle} — ${calendarDate}` : `Событие: ${calendarTitle}`;
+      const { reply } = await sendChat(apiMessages, {
+        threadId: thread ?? undefined,
+        context: context ?? undefined,
+      });
       setMessages((prev) => [...prev, { role: "assistant", text: reply }]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Ошибка отправки";
@@ -93,27 +146,50 @@ export default function ChatPage() {
         </Button>
       </header>
 
-      <ScrollArea className="flex-1 p-4">
-        <div className="max-w-2xl mx-auto space-y-6 py-4">
-          {analysis && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex items-center justify-between gap-3"
-            >
-              <div className="flex items-center gap-2 min-w-0">
+      {(analysis || (thread && calendarTitle)) && (
+        <div className="shrink-0 border-b border-border/50 bg-muted/30 px-4 py-2 backdrop-blur-sm sticky top-[57px] z-10">
+          <div className="max-w-2xl mx-auto flex items-center gap-2">
+            {analysis && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 flex items-center gap-2 min-w-0 flex-1"
+              >
                 <FileText className="w-4 h-4 text-primary shrink-0" />
                 <span className="text-sm text-muted-foreground truncate">
-                  Обсуждаете анализ: <span className="font-medium text-foreground">{analysis.title}</span>
+                  Обсуждаете: <span className="font-medium text-foreground">{analysis.title}</span>
                 </span>
-              </div>
-              <Link href={`/analysis/${analysis.id}`}>
-                <Button variant="ghost" size="sm" className="shrink-0 text-primary">
-                  К анализу
-                </Button>
-              </Link>
-            </motion.div>
-          )}
+                <Link href={`/analysis/${analysis.id}`}>
+                  <Button variant="ghost" size="sm" className="shrink-0 text-primary h-7 text-xs">
+                    К анализу
+                  </Button>
+                </Link>
+              </motion.div>
+            )}
+            {thread && calendarTitle && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 flex items-center gap-2 min-w-0 flex-1"
+              >
+                <CalendarIcon className="w-4 h-4 text-primary shrink-0" />
+                <span className="text-sm text-muted-foreground truncate">
+                  Обсуждаете: <span className="font-medium text-foreground">{calendarTitle}</span>
+                  {calendarDate && <span className="text-muted-foreground"> — {calendarDate}</span>}
+                </span>
+                <Link href="/calendar">
+                  <Button variant="ghost" size="sm" className="shrink-0 text-primary h-7 text-xs">
+                    В календарь
+                  </Button>
+                </Link>
+              </motion.div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <ScrollArea className="flex-1 p-4">
+        <div className="max-w-2xl mx-auto space-y-6 py-4">
           {messages.map((msg, i) => (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}

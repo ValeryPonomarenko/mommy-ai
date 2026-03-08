@@ -13,8 +13,10 @@ import {
   Heart,
   Smile,
   Moon,
+  LogOut,
 } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -56,10 +58,17 @@ function getLatestForSlug(slug: MetricSlug): string {
 }
 
 export default function Dashboard() {
-  const currentWeek = 22;
+  const [, setLocation] = useLocation();
+  const { user, profile, logout } = useAuth();
+  const currentWeek = profile?.pregnancy_week ?? 22;
   const fetalSize = getFetalSizeByWeek(currentWeek);
   const [quickLogMetric, setQuickLogMetric] = useState<MetricSlug | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  function handleLogout() {
+    logout();
+    setLocation("/login");
+  }
 
   const fadeIn = {
     initial: { opacity: 0, y: 20 },
@@ -89,14 +98,17 @@ export default function Dashboard() {
               <h1 className="text-2xl font-serif font-semibold text-foreground tracking-tight">Mommy AI</h1>
             </div>
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10">
               <Bell className="w-5 h-5 text-muted-foreground" />
             </Button>
             <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
               <AvatarImage src="https://i.pravatar.cc/150?img=47" />
-              <AvatarFallback>AM</AvatarFallback>
+              <AvatarFallback>{user?.email?.slice(0, 2).toUpperCase() ?? "?"}</AvatarFallback>
             </Avatar>
+            <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10" onClick={handleLogout} title="Выйти">
+              <LogOut className="w-5 h-5 text-muted-foreground" />
+            </Button>
           </div>
         </header>
 
